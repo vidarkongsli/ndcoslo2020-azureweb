@@ -21,3 +21,8 @@ GET {{host}}/sciencejokes
 
 # A Chuck Norris joke
 GET {{host}}/chuckjokes
+
+### 
+
+# Application health
+GET {{host}}/health
