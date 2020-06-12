@@ -1,0 +1,28 @@
+
+@host = https://localhost:5001
+#@host = http://localhost
+#@host = https://ndcoslo2020-jokes-1.azurewebsites.net
+#@host = https://ndcoslo2020-jokes-1-pre.azurewebsites.net
+
+# Application root
+GET {{host}}/
+
+###
+
+# A normal joke
+GET {{host}}/jokes
+
+### 
+
+# A science joke
+GET {{host}}/sciencejokes
+
+### 
+
+# A Chuck Norris joke
+GET {{host}}/chuckjokes
+
+### 
+
+# Application health
+GET {{host}}/health
