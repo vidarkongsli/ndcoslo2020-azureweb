@@ -1,0 +1,86 @@
+name: 1.0$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - ndcoslo2020
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  namePrefix: ndcoslo2020
+  webAppName: '$(namePrefix)-jokes-5'
+  webAppResourceGroup: '$(namePrefix)-rg'
+  dockerRegistryServiceConnection: $(namePrefix)-acr
+  azureServiceConnection: 'visualstudio-premium-vidar'
+  registryName: '$(namePrefix).azurecr.io'
+  repository: 'demos/kongslindc2020jokes'
+  imageNameNoTag: $(registryName)/$(repository)
+  imageName: $(imageNameNoTag):$(build.buildNumber)
+
+steps:
+- task: Bash@3
+  displayName: Set version info
+  inputs:
+    targetType: inline
+    script: 'echo -ne "$(build.buildNumber)" > Kongsli.Ndc2020.Jokes.Api/version.txt'
+
+- script: docker build -t $(imageName) -t '$(imageNameNoTag):latest' .
+  displayName: 'docker build'
+
+- script: |
+    export id=$(docker images --filter "label=test=true" -q | head -1)
+    docker create --name testcontainer $id
+    docker cp testcontainer:/testresults ./testresults
+    docker rm testcontainer
+  displayName: 'Get test results from intermediate container'
+  condition: succeededOrFailed()
+
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFormat: 'VSTest'
+    testResultsFiles: '**/*.trx'
+    searchFolder: '$(System.DefaultWorkingDirectory)/testresults'
+    publishRunAttachments: true
+  displayName: 'Publish test results'
+
+- task: Docker@2
+  displayName: Login to ACR
+  inputs:
+    command: login
+    containerRegistry: $(dockerRegistryServiceConnection)
+  
+- task: Docker@2
+  displayName: Push an image to container registry
+  inputs:
+    command: push
+    repository: $(repository)
+    containerRegistry: $(dockerRegistryServiceConnection)
+    tags: |
+      $(build.buildNumber)
+      latest
+
+- task: AzureCLI@2
+  displayName: Update container image reference
+  inputs:
+    azureSubscription: $(azureServiceConnection)
+    scriptType: pscore
+    scriptLocation: inlineScript
+    inlineScript: |
+      az webapp config container set --name $(webAppName) `
+        --resource-group '$(webAppResourceGroup)' `
+        --docker-custom-image-name $(imageName) `
+        --slot pre
+
+- task: AzureCLI@2
+  displayName: Swap to production
+  inputs:
+    azureSubscription: $(azureServiceConnection)
+    scriptType: pscore
+    scriptLocation: inlineScript
+    inlineScript: |
+      az webapp deployment slot swap --name '$(webAppName)' `
+      --resource-group '$(webAppResourceGroup)' `
+      --slot pre
