@@ -7,7 +7,7 @@ variables:
 trigger:
   branches:
     include:
-      - ndcoslo2020
+      - master
 
 pool:
   vmImage: 'ubuntu-latest'
