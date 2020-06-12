@@ -1,0 +1,53 @@
+name: 1.0$(Rev:.r)
+
+variables:
+  webAppName: ndcoslo2020-jokes-2
+  webAppRG: ndcoslo2020-rg
+
+trigger:
+  branches:
+    include:
+      - ndcoslo2020
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: Bash@3
+  displayName: Set version info
+  inputs:
+    targetType: inline
+    script: 'echo -ne "$(build.buildNumber)" > Kongsli.Ndc2020.Jokes.Api/version.txt'
+
+- task: PowerShell@2  
+  displayName: Run build script
+  inputs:
+    pwsh: true
+    targetType: filePath
+    filePath: deploy.ps1
+    arguments: '-deploymentDirectory $(build.artifactstagingdirectory) -deploymentTemp $(Agent.WorkFolder)/jokes_temp'
+
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFiles: '**/*.trx'
+    testResultsFormat: VSTest
+
+- task: AzureWebApp@1
+  displayName: 'Deploy Azure App Service'
+  inputs:
+    azureSubscription: 'visualstudio-premium-vidar'
+    appType: webApp
+    appName: $(webAppName)
+    deploymentMethod: runFromPackage
+    package:  '$(build.artifactstagingdirectory)/*.zip'
+    slotName: pre
+
+- task: AzureAppServiceManage@0
+  inputs:
+    azureSubscription: 'visualstudio-premium-vidar'
+    action: 'Swap Slots'
+    webAppName: $(webAppName)
+    sourceSlot: pre
+    resourceGroupName: $(webAppRG)
+
